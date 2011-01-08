@@ -28,8 +28,8 @@ struct opts {
     char **o_argv;
 };
 
-char *xgetenv(const char *name) {
-    char *result = getenv(name);
+const char *xgetenv(const char *name) {
+    const char *result = getenv(name);
     if (!result) {
         fprintf(stderr, "vcslog-wrapper: getenv(\"%s\") failed\n", name);
         exit(1);
@@ -80,23 +80,6 @@ void xgettimeofday(struct timeval *tv) {
     }
 }
 
-void setup_opts(struct opts *opts, int argc, char **argv) {
-    opts->o_loglevel = getenv("VCSLOG_DEBUG")? LOG_DEBUG : LOG_INFO;
-    opts->o_datadir = xasprintf("%s/.vcslog", xgetenv("HOME"));
-    opts->o_logdir = xasprintf("%s/logs", opts->o_datadir);
-    opts->o_realpath = realpath(argv[0], NULL);
-    if (!opts->o_realpath) {
-        fprintf(stderr, "vcslog-wrapper: realpath(\"%s\") failed\n", argv[0]);
-        exit(1);
-    }
-    opts->o_execname = xstrdup(basename(argv[0]));
-    opts->o_argc = argc - 1;
-    opts->o_argv = argv + 1;
-    opts->o_session_log = xasprintf("%s/vcslog-%s-%d", opts->o_logdir, 
-                                    opts->o_execname, getpid());
-    opts->o_session_log_file = NULL;
-}
-
 void debug_printopts(struct opts *opts) {
     int arg;
     printf("o_loglevel: %d\n", opts->o_loglevel);
@@ -139,7 +122,8 @@ void log_vcs(struct opts *opts, char *format, ...) {
 }
 
 char *find_real_executable(struct opts *opts) {
-    char *sys_path = xgetenv("PATH");
+    char *sys_path = xstrdup(xgetenv("PATH"));
+    char *_old_sys_path = sys_path;
     char *path_part;
     char tmp_path[PATH_MAX + 1] = "\0";
     char _real_path[PATH_MAX + 1] = "\0";
@@ -149,14 +133,17 @@ char *find_real_executable(struct opts *opts) {
     while ((path_part = strsep(&sys_path, ":")) != NULL) {
         res = snprintf(tmp_path, PATH_MAX, "%s/%s",
                        path_part, opts->o_execname);
-        tmp_path[PATH_MAX] = '\0';
         if (res < 0) {
             fprintf(stderr, "vcslog-wrapper: snprintf failed\n");
             exit(1);
         }
+        tmp_path[PATH_MAX] = '\0';
 
         real_path = realpath(tmp_path, _real_path);
-        if (!real_path || strcmp(real_path, opts->o_realpath) == 0) {
+        if (!real_path)
+            continue;
+
+        if (strcmp(real_path, opts->o_realpath) == 0) {
             real_path = NULL;
             continue;
         }
@@ -169,6 +156,8 @@ char *find_real_executable(struct opts *opts) {
                 opts->o_execname);
         exit(1);
     }
+
+    free(_old_sys_path);
     return xstrdup(real_path);
 }
         
@@ -215,6 +204,23 @@ void run_wrapped(struct opts *opts) {
             exitcode,
             rusage.ru_utime.tv_sec, rusage.ru_utime.tv_usec,
             rusage.ru_stime.tv_sec, rusage.ru_stime.tv_usec);
+}
+
+void setup_opts(struct opts *opts, int argc, char **argv) {
+    opts->o_loglevel = getenv("VCSLOG_DEBUG")? LOG_DEBUG : LOG_INFO;
+    opts->o_datadir = xasprintf("%s/.vcslog", xgetenv("HOME"));
+    opts->o_logdir = xasprintf("%s/logs", opts->o_datadir);
+    opts->o_execname = xstrdup(basename(argv[0]));
+    opts->o_realpath = realpath(argv[0], NULL);
+    if (!opts->o_realpath) {
+        opts->o_realpath = "";
+        opts->o_realpath = find_real_executable(opts);
+    }
+    opts->o_argc = argc - 1;
+    opts->o_argv = argv + 1;
+    opts->o_session_log = xasprintf("%s/vcslog-%s-%d", opts->o_logdir, 
+                                    opts->o_execname, getpid());
+    opts->o_session_log_file = NULL;
 }
 
 int main(int argc, char **argv) {

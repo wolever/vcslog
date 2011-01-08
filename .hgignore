@@ -13,3 +13,4 @@ tags
 *.beam
 *.dump
 vcslog-wrapper/vcslog-wrapper
+*.dSYM
