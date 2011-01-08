@@ -1,0 +1,15 @@
+syntax: glob
+*.class
+*.o
+*.pyc
+*.sqlite3
+*.sw[op]
+*~
+.DS_Store
+bin-debug/*
+bin-release/*
+bin/*
+tags
+*.beam
+*.dump
+vcslog-wrapper/vcslog-wrapper
