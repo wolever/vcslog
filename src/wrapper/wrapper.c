@@ -9,10 +9,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define LOGLEVEL(level, target_level) (level <= target_level)
+#define LOGLEVEL(opts, target_level) (opts->o_loglevel <= target_level)
 #define LOG_DEBUG 0
 #define LOG_INFO 10
 #define LOG_WARNING 20
+
+// Log messages prefixed with LOG_NP will not be given the level prefix.
+#define LOG_NP "\1"
 
 #define VERSION "vcslog-wrapper-0.01"
 
@@ -27,6 +30,21 @@ struct opts {
     int o_argc;
     char **o_argv;
 };
+
+void debug(struct opts *opts, const char *format, ...) {
+    if (!LOGLEVEL(opts, LOG_DEBUG))
+        return;
+
+    va_list ap;
+    va_start(ap, format);
+    if (format[0] == LOG_NP[0]) {
+        format += 1;
+    } else {
+        fprintf(stderr, "DEBUG: ");
+    }
+    vfprintf(stderr, format, ap);
+    va_end(ap);
+}
 
 const char *xgetenv(const char *name) {
     const char *result = getenv(name);
@@ -81,19 +99,22 @@ void xgettimeofday(struct timeval *tv) {
 }
 
 void debug_printopts(struct opts *opts) {
+    if (!LOGLEVEL(opts, LOG_DEBUG))
+        return;
+
     int arg;
-    printf("o_loglevel: %d\n", opts->o_loglevel);
-    printf("o_datadir: %s\n", opts->o_datadir);
-    printf("o_logdir: %s\n", opts->o_logdir);
-    printf("o_argc: %d\n", opts->o_argc);
-    printf("o_argv:");
+    debug(opts, "o_loglevel: %d\n", opts->o_loglevel);
+    debug(opts, "o_datadir: %s\n", opts->o_datadir);
+    debug(opts, "o_logdir: %s\n", opts->o_logdir);
+    debug(opts, "o_argc: %d\n", opts->o_argc);
+    debug(opts, "o_argv:");
     for (arg = 0; arg < opts->o_argc; arg += 1)
-        printf(" %s", opts->o_argv[arg]);
-    printf("\n");
-    printf("o_realpath: %s\n", opts->o_realpath);
-    printf("o_execname: %s\n", opts->o_execname);
-    printf("o_session_log: %s\n", opts->o_session_log);
-    printf("o_session_log_file: %p\n", opts->o_session_log_file);
+        debug(opts, LOG_NP " %s", opts->o_argv[arg]);
+    debug(opts, LOG_NP "\n");
+    debug(opts, "o_realpath: %s\n", opts->o_realpath);
+    debug(opts, "o_execname: %s\n", opts->o_execname);
+    debug(opts, "o_session_log: %s\n", opts->o_session_log);
+    debug(opts, "o_session_log_file: %p\n", opts->o_session_log_file);
 }
 
 void log_vcs(struct opts *opts, char *format, ...) {
@@ -226,8 +247,8 @@ void setup_opts(struct opts *opts, int argc, char **argv) {
 int main(int argc, char **argv) {
     struct opts opts;
     setup_opts(&opts, argc, argv);
-    if (LOGLEVEL(opts.o_loglevel, LOG_DEBUG))
-        debug_printopts(&opts);
+    debug(&opts, VERSION " starting...\n");
+    debug_printopts(&opts);
     run_wrapped(&opts);
     return 0;
 }
