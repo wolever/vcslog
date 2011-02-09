@@ -64,3 +64,10 @@ How can I submit my data?
     Uuhh... Stay tuned! Eventually there will be a simple way to submit your
     data.
 
+What version control systems are supported?
+    All of them! Because ``vcslog`` simply wraps the vcs's binary it can really
+    support just about anything.
+
+Why do you have a ``.hgignore`` in a git repository?
+    Because I actually despise git and use Mercurial for everything (including
+    git repositories).
