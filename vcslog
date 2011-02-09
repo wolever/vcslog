@@ -2,7 +2,9 @@
 import sys
 import os
 
-relpath = lambda x: os.path.join(os.path.dirname(__file__), x)
+_real_path = os.path.realpath(__file__)
+_real_dir = os.path.dirname(_real_path)
+relpath = lambda x: os.path.join(_real_dir, x)
 sys.path.insert(0, relpath("src/"))
 
 import libvcslog.commands

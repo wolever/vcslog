@@ -9,6 +9,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "xquotestr.h"
+
 #define LOGLEVEL(opts, target_level) (opts->o_loglevel <= target_level)
 #define LOG_DEBUG 0
 #define LOG_INFO 10
@@ -17,7 +19,7 @@
 // Log messages prefixed with LOG_NP will not be given the level prefix.
 #define LOG_NP "\1"
 
-#define VERSION "vcslog-wrapper-0.01"
+#define VERSION "vcslog-wrapper-0.02"
 
 struct opts {
     int o_loglevel;
@@ -25,7 +27,7 @@ struct opts {
     const char *o_logdir;
     const char *o_session_log;
     FILE *o_session_log_file;
-    const char *o_realpath;
+    char o_realpath[PATH_MAX+1];
     const char *o_execname;
     int o_argc;
     char **o_argv;
@@ -142,13 +144,13 @@ void log_vcs(struct opts *opts, char *format, ...) {
     va_end(ap);
 }
 
-char *find_real_executable(struct opts *opts) {
+void xfind_real_executable(struct opts *opts, char *output) {
+    // 'output' must be at least PATH_MAX + 1
     char *sys_path = xstrdup(xgetenv("PATH"));
     char *_old_sys_path = sys_path;
     char *path_part;
     char tmp_path[PATH_MAX + 1] = "\0";
-    char _real_path[PATH_MAX + 1] = "\0";
-    char *real_path = NULL;
+    char *real_path;
     int res;
 
     while ((path_part = strsep(&sys_path, ":")) != NULL) {
@@ -160,7 +162,7 @@ char *find_real_executable(struct opts *opts) {
         }
         tmp_path[PATH_MAX] = '\0';
 
-        real_path = realpath(tmp_path, _real_path);
+        real_path = realpath(tmp_path, output);
         if (!real_path)
             continue;
 
@@ -179,22 +181,24 @@ char *find_real_executable(struct opts *opts) {
     }
 
     free(_old_sys_path);
-    return xstrdup(real_path);
 }
-        
+
 void run_wrapped(struct opts *opts) {
     int arg;
 
-    char *torun;
-    torun = find_real_executable(opts);
+    char torun[PATH_MAX + 1];
+    xfind_real_executable(opts, torun);
 
     struct timeval start;
     xgettimeofday(&start);
 
+    char quoted_arg[1024*4];
     log_vcs(opts, "start: %s %d.%06d\n", VERSION, start.tv_sec, start.tv_usec);
-    log_vcs(opts, "cmd: %s", opts->o_execname);
+    log_vcs(opts, "cmd: %s", xquotestr(opts->o_execname, quoted_arg,
+                                       sizeof(quoted_arg)));
     for (arg = 0; arg < opts->o_argc; arg += 1)
-        log_vcs(opts, " %s", opts->o_argv[arg]);
+        log_vcs(opts, " %s", xquotestr(opts->o_argv[arg], quoted_arg,
+                                       sizeof(quoted_arg)));
     log_vcs(opts, "\n");
 
     char **new_argv;
@@ -229,13 +233,16 @@ void run_wrapped(struct opts *opts) {
 
 void setup_opts(struct opts *opts, int argc, char **argv) {
     opts->o_loglevel = getenv("VCSLOG_DEBUG")? LOG_DEBUG : LOG_INFO;
-    opts->o_datadir = xasprintf("%s/.vcslog", xgetenv("HOME"));
+    const char *datadir = getenv("VCSLOG_HOME");
+    if (datadir == NULL)
+        datadir = xasprintf("%s/.vcslog", xgetenv("HOME"));
+    opts->o_datadir = datadir;
     opts->o_logdir = xasprintf("%s/logs", opts->o_datadir);
     opts->o_execname = xstrdup(basename(argv[0]));
-    opts->o_realpath = realpath(argv[0], NULL);
-    if (!opts->o_realpath) {
-        opts->o_realpath = "";
-        opts->o_realpath = find_real_executable(opts);
+    if (!realpath(argv[0], opts->o_realpath)) {
+        char temp_path[PATH_MAX + 1];
+        xfind_real_executable(opts, temp_path);
+        strcpy(opts->o_realpath, temp_path);
     }
     opts->o_argc = argc - 1;
     opts->o_argv = argv + 1;
