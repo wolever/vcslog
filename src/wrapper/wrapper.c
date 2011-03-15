@@ -19,7 +19,7 @@
 // Log messages prefixed with LOG_NP will not be given the level prefix.
 #define LOG_NP "\1"
 
-#define VERSION "vcslog-wrapper-0.02"
+#define VERSION "vcslog-wrapper-0.03"
 
 struct opts {
     int o_loglevel;
@@ -163,6 +163,7 @@ void xfind_real_executable(struct opts *opts, char *output) {
         tmp_path[PATH_MAX] = '\0';
 
         real_path = realpath(tmp_path, output);
+        debug(opts, "realpath(\"%s\"): \"%s\"\n", tmp_path, output);
         if (!real_path)
             continue;
 
@@ -239,7 +240,14 @@ void setup_opts(struct opts *opts, int argc, char **argv) {
     opts->o_datadir = datadir;
     opts->o_logdir = xasprintf("%s/logs", opts->o_datadir);
     opts->o_execname = xstrdup(basename(argv[0]));
-    if (!realpath(argv[0], opts->o_realpath)) {
+    // If a full path was used
+    if (strchr(argv[0], '/')) {
+        if (!realpath(argv[0], opts->o_realpath)) {
+            fprintf(stderr, "vcslog-wrapper: realpath(\"%s\") failed\n",
+                    argv[0]);
+            exit(1);
+        }
+    } else {
         char temp_path[PATH_MAX + 1];
         xfind_real_executable(opts, temp_path);
         strcpy(opts->o_realpath, temp_path);
