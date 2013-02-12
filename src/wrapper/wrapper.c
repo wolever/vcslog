@@ -184,7 +184,7 @@ void xfind_real_executable(struct opts *opts, char *output) {
     free(_old_sys_path);
 }
 
-void run_wrapped(struct opts *opts) {
+int run_wrapped(struct opts *opts) {
     int arg;
 
     char torun[PATH_MAX + 1];
@@ -230,6 +230,7 @@ void run_wrapped(struct opts *opts) {
             exitcode,
             rusage.ru_utime.tv_sec, rusage.ru_utime.tv_usec,
             rusage.ru_stime.tv_sec, rusage.ru_stime.tv_usec);
+    return exitcode;
 }
 
 void setup_opts(struct opts *opts, int argc, char **argv) {
@@ -264,6 +265,5 @@ int main(int argc, char **argv) {
     setup_opts(&opts, argc, argv);
     debug(&opts, VERSION " starting...\n");
     debug_printopts(&opts);
-    run_wrapped(&opts);
-    return 0;
+    return run_wrapped(&opts);
 }
