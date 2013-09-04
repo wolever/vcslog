@@ -1,3 +1,4 @@
+#include <pwd.h>
 #include <libgen.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -255,8 +256,11 @@ void setup_opts(struct opts *opts, int argc, char **argv) {
     }
     opts->o_argc = argc - 1;
     opts->o_argv = argv + 1;
-    opts->o_session_log = xasprintf("%s/vcslog-%s-%d", opts->o_logdir, 
-                                    opts->o_execname, getpid());
+
+    struct passwd *passwd = getpwuid(geteuid());
+    opts->o_session_log = xasprintf("%s/vcslog-%s-%s-%d", opts->o_logdir, 
+                                    opts->o_execname, passwd->pw_name, getpid());
+
     opts->o_session_log_file = NULL;
 }
 
